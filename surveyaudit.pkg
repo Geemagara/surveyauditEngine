@@ -1,0 +1,6 @@
+v 3
+d surveyaudit: Automated master pipeline execution and log-auditing toolkit
+d Author: George Magara, KNBS
+d Distribution-Date: 20261109
+f surveyaudit.ado
+f surveyaudit.sthlp
