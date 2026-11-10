@@ -1,11 +1,24 @@
-*! version 2.2.0  10Nov2026
-*! Harmonized with KIHBS 2025/26 init.do framework & auto-update mechanism
+*! version 2.3.0  10Nov2026
+*! Harmonized with KIHBS 2025/26 init.do framework & robust subcommand update
 program define surveyaudit
     version 18
-    syntax, [ rootpath(string) dopath(string) logpath(string) docpath(string) update ]
+    
+    * --- ROBUST SUBCOMMAND / OPTION UPDATE CHECK ---
+    * Support both "surveyaudit update" (no comma) and "surveyaudit, update" (with comma)
+    gettoken subarg rest : 0, parse(" ,")
+    if "`subarg'" == "update" {
+        local do_update = 1
+    }
+    else {
+        * Check if update option is passed after comma
+        local do_update = 0
+        capture syntax, [ rootpath(string) dopath(string) logpath(string) docpath(string) update ]
+        if "`update'" != "" {
+            local do_update = 1
+        }
+    }
 
-    * --- HANDLE UPDATE SUBCOMMAND / OPTION ---
-    if "`update'" != "" {
+    if `do_update' {
         di as text "========================================================="
         di as text "CHECKING FOR SURVEYAUDIT UPDATES FROM GITHUB..."
         di as text "========================================================="
@@ -72,6 +85,9 @@ program define surveyaudit
         capture erase "`temp_ver_file'"
         exit 0
     }
+
+    * Re-parse standard pipeline execution syntax
+    syntax, [ rootpath(string) dopath(string) logpath(string) docpath(string) update ]
 
     di as text "========================================================="
     di as text "STARTING STATA-SURVEYAUDITENGINE PIPELINE"
