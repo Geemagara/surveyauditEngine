@@ -1,8 +1,77 @@
-*! version 2.1.0  09Nov2026
-*! Harmonized with KIHBS 2025/26 init.do framework & auto-fallback
+*! version 2.2.0  10Nov2026
+*! Harmonized with KIHBS 2025/26 init.do framework & auto-update mechanism
 program define surveyaudit
     version 18
-    syntax, [ rootpath(string) ]
+    syntax, [ rootpath(string) dopath(string) logpath(string) docpath(string) update ]
+
+    * --- HANDLE UPDATE SUBCOMMAND / OPTION ---
+    if "`update'" != "" {
+        di as text "========================================================="
+        di as text "CHECKING FOR SURVEYAUDIT UPDATES FROM GITHUB..."
+        di as text "========================================================="
+        
+        * 1. Get local version from installed surveyaudit.ado
+        capture findfile surveyaudit.ado
+        if _rc != 0 {
+            di as error "Could not locate local installation of surveyaudit.ado."
+            exit 601
+        }
+        local local_ado_path "`r(fn)'"
+        
+        local local_ver = ""
+        file open fh using "`local_ado_path'", read
+        file read fh line
+        * Read first few lines to find version tag
+        forvalues k = 1/5 {
+            if strpos("`line'", "*! version") {
+                local local_ver = trim(subinstr("`line'", "*! version", "", .))
+                continue, break
+            }
+            file read fh line
+        }
+        file close fh
+        
+        di as text "Locally installed version tag: `local_ver'"
+        
+        * 2. Download remote version file from GitHub
+        local remote_ver_url "https://raw.githubusercontent.com/Geemagara/surveyauditEngine/main/version.txt"
+        local temp_ver_file "`c(tmpdir)/remote_version.txt'"
+        
+        capture copy "`remote_ver_url'" "`temp_ver_file'", replace
+        if _rc != 0 {
+            di as error "Failed to connect to GitHub repository to check for updates. Check your internet connection."
+            exit 601
+        }
+        
+        * 3. Read remote version
+        file open rfh using "`temp_ver_file'", read
+        file read rfh remote_ver
+        file close rfh
+        local remote_ver = trim("`remote_ver'")
+        
+        di as text "Latest remote version on GitHub: `remote_ver'"
+        
+        * 4. Compare and update if newer
+        if "`local_ver'" != "`remote_ver'" {
+            di as result "New version available (`remote_ver'). Updating package..."
+            capture net from "https://raw.githubusercontent.com/Geemagara/surveyauditEngine/main/"
+            capture net install surveyaudit, replace
+            if _rc == 0 {
+                di as result "========================================================="
+                di as result "UPDATE SUCCESSFUL! surveyaudit is now at version `remote_ver'."
+                di as result "========================================================="
+            }
+            else {
+                di as error "Update installation failed. Please check network permissions."
+                exit _rc
+            }
+        }
+        else {
+            di as result "surveyaudit is already up to date (version `local_ver')."
+        }
+        capture erase "`temp_ver_file'"
+        exit 0
+    }
 
     di as text "========================================================="
     di as text "STARTING STATA-SURVEYAUDITENGINE PIPELINE"
@@ -29,6 +98,17 @@ program define surveyaudit
                 exit 198
             }
         }
+    }
+
+    * Override paths if explicit options are provided
+    if "`dopath'" != "" {
+        global gsdDo "`dopath'"
+    }
+    if "`logpath'" != "" {
+        global gsdLog "`logpath'"
+    }
+    if "`docpath'" != "" {
+        global gsdDocs "`docpath'"
     }
 
     * Ensure maxvar is set for wide survey merges
